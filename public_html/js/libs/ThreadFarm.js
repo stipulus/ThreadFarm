@@ -105,29 +105,20 @@ var ThreadFarm = {};
         id:0,
         blob: null,
         worker: null,
-        responseName: 'res',
-        data: '{}',
         include: [],
         inprogress: false,
         autoDestroy: false,
         autoStart: false,
-        isBusy: false,
         onmessage: function (e) {console.log(e);},
         construct: function (params) {
             if(typeof params !== 'object') params = {};
             this.addIncludes(params.include);
-            this.setData(params.data);
             this.setRun(params.run);
             this.setCallback(params.callback);
             this.setAutoDestroy(params.autoDestroy);
             this.setAutoStart(params.autoStart);
-            if(this.blob === null)
-                this.setBlob(this.buildFunStr());
+            this.setBlob(this.buildFunStr());
             if(this.autoStart) this.start();
-        },
-        setData: function (v) {
-            if(typeof v !== 'undefined')
-                this.data = JSON.stringify(v);
         },
         setAutoStart: function (v) {
             if(typeof v !== 'undefined')
@@ -185,22 +176,15 @@ var ThreadFarm = {};
             }
         },
         setRun: function (v) {
-            if(typeof v != 'undefined') {
+            if(typeof v != 'undefined')
                 this.run = v;
-                this.setBlob(this.buildFunStr());
-            }
-        },
-        setResponseName: function (v) {
-            if(typeof v === 'string' && v.length > 0)
-                this.responseName = v;
         },
         buildFunStr: function () {
             if(typeof this.run !== 'undefined') {
                 var funstr = this.run.toString();
-                this.setResponseName(funstr.substr(funstr.indexOf('(')+1,funstr.indexOf(')')-funstr.indexOf('(')-1));
                 var start = funstr.indexOf('{')+1;
-                var prefix = 'var '+this.responseName+' = '+this.data+';'+this.getIncludes();
-                var suffix = 'postMessage("complete "+JSON.stringify('+this.responseName+'));';
+                var prefix = 'var response = {};'+this.getIncludes();
+                var suffix = 'postMessage("complete "+JSON.stringify(response));';
                 funstr = prefix+funstr.substr(start,funstr.lastIndexOf('}')-start)+suffix;
                 delete start,prefix,suffix;
                 return funstr;
@@ -244,12 +228,6 @@ var ThreadFarm = {};
             this.worker.onmessage = function (e) {
                 self.parseMessage(e);
             };
-        },
-        busy: function () {
-            this.isBusy = true;
-        },
-        ready: function () {
-            this.isBusy = false;
         }
     });
     pub.Thread = Thread;
