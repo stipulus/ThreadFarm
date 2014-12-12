@@ -6,6 +6,7 @@ var ga = (function () {
     var busy = false;
     var maxGen = 100;
     var maxPop = 100;
+    var maxNum = 1000;
     var Thread;
     try {
         Thread = ThreadFarm.seed.prototype.extend({
@@ -16,7 +17,12 @@ var ga = (function () {
     } catch (e) {
         
     }
+    var getScore = function getScore (indi) {
+        return Math.abs(eval(indi)-Math.PI);
+    };
     function init () {
+        genPop();
+        return;
         new Thread({
             data: {
                 X1:X1
@@ -31,23 +37,30 @@ var ga = (function () {
         }).start();
     }
     function run () {
-        new Thread({
+        var d = new Date();
+        var start = d.getTime();
+        var thread = new Thread({
             data: {
-                X1:X1
+                X1:X1,
+                maxGen:maxGen
             },
             run: function (data) {
-                data.X1 = ga.generations(data.X1,100);
+                data.X1 = ga.generations(data.X1,data.maxGen);
             },
             callback: function (res) {
                 X1 = res.X1;
-                for(var i = 0;i < maxPop;i++)
-                    console.log(getScore(X1[i]));
-                ready();
+                var d = new Date();
+                var end = d.getTime();
+                console.log('completed at '+end+' taking '+(end-start)+' milliseconds');
+                printScores();
+                //ready();
             }
-        }).start();
+        });
+        console.log('started at '+start);
+        thread.start();
     }
     function generation (_X1) {
-        if(typeof _X1 !== 'undefined')
+        if(typeof _X1 === 'object')
             X1 = _X1;
         copyX1X2();
         mutateX2Xr();
@@ -55,6 +68,10 @@ var ga = (function () {
         return X1;
     }
     function generations (_X1,num) {
+        if(typeof _X1 === 'number')
+            num = _X1;
+        else if(typeof num !== 'number')
+            num = maxGen;
         generation(_X1);
         for(var i = 1;i < num;i++)
             generation();
@@ -69,13 +86,15 @@ var ga = (function () {
     }
     function sortToX1 () {
         var scores = {};
+        function fun(i,j) {
+            if(i < maxPop)
+                scores[i] = {index:i,score:getScore(X2[i])};
+            else
+                scores[i] = {index:i,score:getScore(Xr[j])};
+            if(isNaN(scores[i].score))
+                scores[i] = null;
+        }
         for(var i = 0,j = (-1)*maxPop;i < maxPop*2;i++,j++) {
-            function fun(i,j) {
-                if(i < maxPop)
-                    scores[i] = {index:i,score:getScore(X2[i])};
-                else
-                    scores[i] = {index:i,score:getScore(Xr[j])};
-            }
             fun(i,j);
         }
         for(var j = 0;j < maxPop;j++) {
@@ -111,37 +130,59 @@ var ga = (function () {
             Queue.pop()();
         }
     }
-    function genPop (X1) {
+    function genPop (_X1) {
+        if(typeof _X1 !== 'undefined')
+            X1 = _X1;
         for(var i = 0;i < maxPop;i++)
             X1[i] = getNew();
         return X1;
     }
     function getNew () {
         return {
-            op:'*',
-            l:3,
-            r:{
-                op:'+',
-                l:4,
-                r:3
-            }
+            op:randOp(),
+            l:randAnd(),
+            r:randAnd()
         };
     }
+    function randAnd () {
+        return Math.random()*maxNum-maxNum;
+    }
+    function randOp () {
+        var ops = '+-*/';
+        return ops.charAt(Math.floor(Math.random()*ops.length));
+    }
     function mutate (obj) {
+        var num = Math.random();
         switch(typeof obj) {
             case 'number':
-                return Math.random()*20-10;
+                if(num < 0.2)
+                    return getNew();
+                else if(num < 0.6)
+                    return randAnd();
+                else
+                    return obj;
                 break;
             case 'string':
+                return obj;//variables[obj]
                 break;
             case 'object':
-                return {
-                    op:obj.op,
-                    l:mutate(obj.l),
-                    r:mutate(obj.r)
-                };
+                if(num < 0.2)
+                    return randAnd();
+                else if(num < 0.6)
+                    return {
+                        op:randOp(),
+                        l:mutate(obj.l),
+                        r:mutate(obj.r)
+                    };
+                else
+                    return {
+                        op:obj.op,
+                        l:mutate(obj.l),
+                        r:mutate(obj.r)
+                    };
                 break;
         }
+        return obj;
     }
     function eval (obj) {
         switch(typeof obj) {
@@ -162,8 +203,19 @@ var ga = (function () {
                 break;
         }
     }
-    function getScore (indi) {
-        return Math.abs(eval(indi));
+    function setGetScore (fun) {
+        getScore = fun;
+    }
+    function printScores (num) {
+        var a,b,score;
+        console.log(X1[0]);
+        console.log(eval(X1[0]));
+        for(var i = 0;i < maxPop;i++) {
+            a = (new Date()).getTime();
+            score = getScore(X1[i]);
+            b = (new Date()).getTime();
+            console.log(i+': '+score+' '+(b-a));
+        }
     }
     function initThreads () {
         //setRun({data},function (res) {});
@@ -217,6 +269,12 @@ var ga = (function () {
         generation:generation,
         generations:generations,
         enQueue:enQueue,
-        mutatePop:mutatePop
+        mutatePop:mutatePop,
+        printScores:printScores,
+        setGetScore:setGetScore,
+        setMaxGen:function (v) {
+            if(typeof v === 'number')
+                maxGen = v;
+        }
     };
 })();
